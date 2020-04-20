@@ -119,6 +119,35 @@ func AddStacktrace(lvl zapcore.LevelEnabler) Option {
 	})
 }
 
+// AddStackFunc use the given method to produce stack data instead of the default Stack method.
+func AddStackFunc(f func(log *Logger, ce *zapcore.CheckedEntry, lvl zapcore.Level, msg string, fields ...Field) string) Option {
+	return optionFunc(func(log *Logger) {
+		log.addStackFunc = f
+	})
+}
+
+// AddErrorsStackFunc record the errors's stack when using `pkg/errors`
+func AddErrorsStackFunc() Option {
+	return AddStackFunc(func(log *Logger, ce *zapcore.CheckedEntry, lvl zapcore.Level, msg string, fields ...Field) (verbose string) {
+		for i, field := range fields {
+			if field.Type == zapcore.ErrorType {
+				err := field.Interface.(error)
+				switch e := err.(type) {
+				case fmt.Formatter:
+					verbose = fmt.Sprintf("%+v", e)
+				default:
+				}
+				if log.development {
+					fields[i].Type = zapcore.StringType
+					fields[i].String = err.Error()
+					fields[i].Interface = nil
+				}
+			}
+		}
+		return
+	})
+}
+
 // IncreaseLevel increase the level of the logger. It has no effect if
 // the passed in level tries to decrease the level of the logger.
 func IncreaseLevel(lvl zapcore.LevelEnabler) Option {

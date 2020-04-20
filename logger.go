@@ -45,8 +45,9 @@ type Logger struct {
 	name        string
 	errorOutput zapcore.WriteSyncer
 
-	addCaller bool
-	addStack  zapcore.LevelEnabler
+	addCaller    bool
+	addStack     zapcore.LevelEnabler
+	addStackFunc func(log *Logger, ce *zapcore.CheckedEntry, lvl zapcore.Level, msg string, fields ...Field) string
 
 	callerSkip int
 }
@@ -304,23 +305,10 @@ func (log *Logger) check(lvl zapcore.Level, msg string, fields ...Field) *zapcor
 		}
 	}
 	if log.addStack.Enabled(ce.Entry.Level) {
-		ce.Entry.Stack = Stack("").String
-
-		for i, field := range fields {
-			if field.Type == zapcore.ErrorType {
-				err := field.Interface.(error)
-				switch e := err.(type) {
-				case fmt.Formatter:
-					verbose := fmt.Sprintf("%+v", e)
-					ce.Entry.Stack = verbose
-				default:
-				}
-				if log.development {
-					fields[i].Type = zapcore.StringType
-					fields[i].String = err.Error()
-					fields[i].Interface = nil
-				}
-			}
+		if log.addStackFunc == nil {
+			ce.Entry.Stack = Stack("").String
+		} else {
+			ce.Entry.Stack = log.addStackFunc(log, ce, lvl, msg, fields...)
 		}
 	}
 
